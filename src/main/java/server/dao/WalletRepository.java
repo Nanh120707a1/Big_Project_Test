@@ -1,6 +1,6 @@
 package server.dao;
 
-import exception.InsufficientFundsException;
+import exception.user.InsufficientFundsException;
 
 import java.sql.Connection;
 import java.sql.SQLException;

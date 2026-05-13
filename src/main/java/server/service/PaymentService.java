@@ -1,5 +1,5 @@
 package server.service;
-import exception.InsufficientFundsException;
+import exception.user.InsufficientFundsException;
 import model.Auction.Auction;
 import model.Auction.AuctionStatus;
 import server.config.DatabaseConfig;

@@ -1,6 +1,6 @@
 package server.dao;
 
-import exception.InsufficientFundsException;
+import exception.user.InsufficientFundsException;
 import server.config.DatabaseConfig;
 
 import java.sql.Connection;
@@ -64,7 +64,7 @@ public class MySQLWalletRepository implements WalletRepository {
 
         // Bước 2: Kiểm tra số dư SAU KHI lock
         if (currentBalance < amount) {
-            throw new InsufficientFundsException(userId, amount, currentBalance);
+            throw new InsufficientFundsException(currentBalance, amount);
         }
 
         // Bước 3: Trừ tiền

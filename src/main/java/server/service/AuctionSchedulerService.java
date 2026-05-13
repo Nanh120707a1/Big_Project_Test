@@ -49,9 +49,9 @@ public class AuctionSchedulerService {
      * Inject sau khi khởi tạo (hoặc dùng setter injection) để tránh circular dependency.
      * AuctionLifecycleService → AuctionSchedulerService → AuctionLifecycleService
      */
-    private AuctionLifecycleService lifecycleService;
+    private AuctionLifeCycleService lifecycleService;
 
-    public void setLifecycleService(AuctionLifecycleService lifecycleService) {
+    public void setLifecycleService(AuctionLifeCycleService lifecycleService) {
         this.lifecycleService = lifecycleService;
     }
 
