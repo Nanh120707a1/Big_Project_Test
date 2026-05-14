@@ -22,9 +22,9 @@ public class AuctionDTOService {
     private final UserRepository userRepo;
 
     public AuctionDTOService(AuctionRepository auctionRepo,
-                          ItemRepository itemRepo,
-                          BidTransactionRepository bidRepo,
-                          UserRepository userRepo) {
+                             ItemRepository itemRepo,
+                             BidTransactionRepository bidRepo,
+                             UserRepository userRepo) {
         this.auctionRepo = auctionRepo;
         this.itemRepo = itemRepo;
         this.bidRepo = bidRepo;

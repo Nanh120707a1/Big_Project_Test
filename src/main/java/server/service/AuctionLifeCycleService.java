@@ -33,8 +33,8 @@ import java.time.LocalDateTime;
  */
 public class AuctionLifeCycleService {
 
-    private final AuctionRepository      auctionRepository;
-    private final ItemRepository         itemRepository;
+    private final AuctionRepository auctionRepository;
+    private final ItemRepository itemRepository;
     private final FrontendNotifier       frontendNotifier;
     private final AuctionSchedulerService schedulerService;
     private final SessionManager         sessionManager;

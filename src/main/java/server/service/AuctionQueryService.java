@@ -1,6 +1,6 @@
 package server.service;
-import server.dto.AuctionCardDTO;
 import server.dao.AuctionRepository;
+import server.dto.AuctionCardDTO;
 
 import java.util.List;
 

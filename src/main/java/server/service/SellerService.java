@@ -29,7 +29,7 @@ public class SellerService {
 
                     if (a.getStatus() == AuctionStatus.PENDING ||
                             a.getStatus() == AuctionStatus.OPEN) {
-                        price = item.getItemOriginalPrice();
+                        price = item.getOriginalPrice();
                     } else {
                         price = a.getCurrentPrice();
                     }

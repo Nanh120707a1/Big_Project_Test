@@ -28,8 +28,8 @@ import java.sql.SQLException;
  */
 public class PaymentService {
 
-    private final AuctionRepository       auctionRepository;
-    private final UserRepository          userRepository;
+    private final AuctionRepository auctionRepository;
+    private final UserRepository userRepository;
     private final AuctionLifeCycleService lifecycleService;
     private final FrontendNotifier        frontendNotifier;
     private final SessionManager          sessionManager;

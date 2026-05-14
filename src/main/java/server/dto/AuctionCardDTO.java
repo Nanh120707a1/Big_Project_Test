@@ -1,5 +1,4 @@
 package server.dto;
-
 public class AuctionCardDTO {
     private String auctionId;
     private String itemName;

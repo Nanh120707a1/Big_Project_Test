@@ -8,11 +8,7 @@ import model.user.Account;
 import model.user.User;
 import model.util.PasswordUtil;
 import model.util.UserValidator;
-import server.config.DatabaseConfig;
 import server.dao.UserRepository;
-
-import java.sql.Connection;
-import java.sql.SQLException;
 
 /**
  * UserService — business logic cho quản lý người dùng.
