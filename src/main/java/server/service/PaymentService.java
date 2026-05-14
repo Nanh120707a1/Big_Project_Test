@@ -6,7 +6,6 @@ import model.user.Account;
 import server.config.DatabaseConfig;
 import server.dao.AuctionRepository;
 import server.dao.UserRepository;
-import server.dao.WalletRepository;
 import server.websocket.FrontendNotifier;
 
 import java.sql.Connection;

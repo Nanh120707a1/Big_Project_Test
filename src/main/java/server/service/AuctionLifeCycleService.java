@@ -56,7 +56,7 @@ public class AuctionLifeCycleService {
             throw new IllegalArgumentException("Giá khởi điểm và bước giá phải > 0.");
         }
 
-        Auction auction = new Auction(itemId, sellerId, startingPrice, priceStep, startTime, endTime);
+        Auction auction = new Auction(itemId, sellerId, startingPrice, startTime, endTime);
         boolean saved = auctionRepository.save(auction);
         if (!saved) {
             System.err.println("[LifecycleService] Không thể lưu phiên mới: " + auction.getId());
