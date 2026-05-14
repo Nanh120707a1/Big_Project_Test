@@ -189,6 +189,34 @@ public class SessionManager {
             throw new UnauthorizedActionException("Chức năng này chỉ dành cho Admin.");
         return admin;
     }
+    // ══════════════════════════════════════════════════════════════
+    //  TRA CỨU ACCOUNT THEO USER ID
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Tìm Account đang online theo userId — không cần token.
+     *
+     * Dùng cho UserService.deposit(sellerId) và UserService.withdraw(buyerId):
+     * PaymentService cần cập nhật RAM của Seller/Buyer sau khi DB đã commit,
+     * nhưng không có token của họ — chỉ có userId từ Auction.
+     *
+     * Trả về Optional.empty() nếu user không online hoặc không phải Account —
+     * caller xử lý bình thường, không cần throw.
+     *
+     * Không touch lastActive — đây không phải request của user,
+     * không nên gia hạn session của họ.
+     *
+     * @param userId ID của user cần tìm
+     * @return Optional<Account> — rỗng nếu không online hoặc đã hết hạn
+     */
+    public Optional<Account> findAccountById(String userId) {
+        return sessions.values().stream()
+                .filter(e -> !e.isExpired())
+                .filter(e -> e.getUser().getId().equals(userId))
+                .filter(e -> e.getUser() instanceof Account)
+                .map(e -> (Account) e.getUser())
+                .findFirst();
+    }
 
     // ══════════════════════════════════════════════════════════════
     //  KIỂM TRA NHANH

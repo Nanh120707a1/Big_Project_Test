@@ -1,6 +1,7 @@
 package model.payment;
 
-
+// Database (users.balance) = tiền thật
+//Wallet (RAM)              = cache hiển thị
 import java.util.concurrent.locks.ReentrantLock;
 
 // Wallet - Ví điện tử gắn liền với mỗi Account
@@ -46,19 +47,11 @@ public class Wallet{
     public void withdraw (double amount){
         lock.lock();
         try{
-            // Check lần 2 đảm bảo dòng tiền (tránh trường hợp nhiều luồng thanh toán)
-            if (amount > balance) throw new IllegalStateException ("Số dư không đủ. Hiện có: " + String.format("%.2f", balance) + " — Cần: " + String.format("%.2f", amount));
             this.balance -= amount;
             System.out.printf("[VÍ] Rút %.2f — Số dư còn lại: %.2f%n", amount, this.balance);
         } finally {
             lock.unlock();
         }
-    }
-    /**
-     * Kiểm tra xem ví có đủ số tiền không.
-     */
-    public boolean hasSufficientFunds(double amount) {
-        return this.balance >= amount;
     }
     public double getBalance() {
         return balance;

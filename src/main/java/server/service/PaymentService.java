@@ -2,8 +2,10 @@ package server.service;
 import exception.user.InsufficientFundsException;
 import model.Auction.Auction;
 import model.Auction.AuctionStatus;
+import model.user.Account;
 import server.config.DatabaseConfig;
 import server.dao.AuctionRepository;
+import server.dao.UserRepository;
 import server.dao.WalletRepository;
 import server.websocket.FrontendNotifier;
 
@@ -29,18 +31,22 @@ import java.sql.SQLException;
 public class PaymentService {
 
     private final AuctionRepository auctionRepository;
-    private final WalletRepository       walletRepository;
+    private final UserRepository userRepository;
     private final AuctionLifeCycleService lifecycleService;
     private final FrontendNotifier frontendNotifier;
+    private final SessionManager sessionManager;
+    private final UserService userService;
 
     public PaymentService(AuctionRepository auctionRepository,
-                          WalletRepository walletRepository,
+                         UserRepository userRepository,
                           AuctionLifeCycleService lifecycleService,
-                          FrontendNotifier frontendNotifier) {
+                          FrontendNotifier frontendNotifier, SessionManager sessionManager, UserService userService) {
         this.auctionRepository = auctionRepository;
-        this.walletRepository  = walletRepository;
+        this.userRepository = userRepository;
         this.lifecycleService  = lifecycleService;
         this.frontendNotifier  = frontendNotifier;
+        this.sessionManager = sessionManager;
+        this.userService = userService;
     }
 
     // ──────────────────────────────────────────────
@@ -58,38 +64,48 @@ public class PaymentService {
      * Tất cả cùng commit hoặc rollback.
      *
      * @param auctionId ID phiên đấu giá
-     * @param buyerId   ID người mua (phải là leadingBidderId)
      * @return PaymentResult
      */
-    public PaymentResult processPayment(String auctionId, String buyerId) {
-        // Load auction
+    public PaymentResult processPayment(String token, String auctionId) {
+        // 1. Xác định user
+        Account buyer = sessionManager.requireAccount(token);
+
+        // 2. Load auction
         Auction auction = auctionRepository.findById(auctionId).orElse(null);
         if (auction == null)
             return PaymentResult.fail("Phiên đấu giá không tồn tại.");
 
-        // Validate trạng thái
+        // 3. Validate trạng thái
         if (!auction.isFinished())
             return PaymentResult.fail("Phiên không ở trạng thái FINISHED. Hiện tại: " + auction.getStatus());
 
-        // Validate người thanh toán
-        if (!buyerId.equals(auction.getLeadingBidderId()))
+        // 4. Validate người thanh toán
+        if (!buyer.getId().equals(auction.getLeadingBidderId()))
             return PaymentResult.fail("Chỉ người thắng đấu giá mới có thể thanh toán.");
 
+        String buyerId  = buyer.getId();
         String sellerId = auction.getSellerId();
         double amount   = auction.getCurrentPrice();
+
+        double buyerNewBalance;
+        double sellerNewBalance;
 
         // Atomic transaction
         try (Connection conn = DatabaseConfig.getConnection()) {
             conn.setAutoCommit(false);
             try {
                 // Bước 1: Trừ tiền Buyer
-                walletRepository.withdraw(conn, buyerId, amount);
+                userRepository.withdraw(conn, buyerId, amount);
 
                 // Bước 2: Cộng tiền Seller
-                walletRepository.deposit(conn, sellerId, amount);
+                userRepository.deposit(conn, sellerId, amount);
 
                 // Bước 3: Đánh dấu phiên PAID
                 auctionRepository.updateStatus(conn, auctionId, AuctionStatus.PAID);
+
+                // Bước 4: Lấy balance mới
+                buyerNewBalance  = userRepository.getBalance(conn, buyerId);
+                sellerNewBalance = userRepository.getBalance(conn, sellerId);
 
                 conn.commit();
 
@@ -107,6 +123,14 @@ public class PaymentService {
             System.err.println("[PaymentService] Lỗi kết nối DB: " + e.getMessage());
             return PaymentResult.fail("Lỗi kết nối hệ thống.");
         }
+        // 5. Sync RAM (optional) = để UI hiển thị nhanh ngay lập tức cho user đang online
+        // (nếu không sync RAM, user đang online sẽ thấy ví không đổi (UI sai cho đến khi refresh hoặc gọi API lại)
+        userService.withdraw(buyerId, amount);
+        userService.deposit(sellerId, amount);
+
+        // 6. PUSH REALTIME BALANCE
+        frontendNotifier.notifyBalanceUpdated(buyerId, buyerNewBalance);
+        frontendNotifier.notifyBalanceUpdated(sellerId, sellerNewBalance);
 
         System.out.printf("[PaymentService] Thanh toán thành công: phiên=%s | buyer=%s | "
                 + "seller=%s | %.0f%n", auctionId, buyerId, sellerId, amount);
@@ -127,7 +151,8 @@ public class PaymentService {
      * @param auctionId ID phiên đấu giá
      * @param buyerId   ID người mua (phải là leadingBidderId)
      */
-    public PaymentResult rejectPayment(String auctionId, String buyerId) {
+    public PaymentResult rejectPayment(String token, String auctionId, String buyerId) {
+        Account account = sessionManager.requireAccount(token);
         Auction auction = auctionRepository.findById(auctionId).orElse(null);
         if (auction == null)
             return PaymentResult.fail("Phiên đấu giá không tồn tại.");

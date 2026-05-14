@@ -1,4 +1,5 @@
 package server.dao;
+import exception.user.InsufficientFundsException;
 import model.payment.Wallet;
 import model.user.Account;
 import model.user.Admin;
@@ -10,6 +11,11 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * Các method đơn lẻ tự mở và đóng Connection bên trong (try-with-resources).
+ * Ngoại lệ duy nhất: updateBalance(Connection, ...) nhận conn từ ngoài
+ * để tham gia transaction của AuctionService.pay().
+ */
 public class MySQLUserRepository implements UserRepository {
 
     // =====================================================================
@@ -42,38 +48,97 @@ public class MySQLUserRepository implements UserRepository {
     }
 
     // =====================================================================
-    // UPDATE BALANCE — chỉ cập nhật số dư ví
-    //
-    // Có 2 phiên bản:
-    //   1. Không có Connection → dùng cho deposit() đơn lẻ
-    //   2. Có Connection       → dùng trong transaction thanh toán:
-    //        updateBalance(conn, bidderId, bidderNewBalance) ← trừ tiền Bidder
-    //        updateBalance(conn, sellerId, sellerNewBalance) ← cộng tiền Seller
-    //        (cùng 1 transaction với updateStatus Auction + PaymentObligation)
+    // UPDATE BALANCE (đơn lẻ) — gọi khi UserService.deposit(token, amount)
+    // Set thẳng giá trị mới — caller đã tính sẵn số dư mới.
     // =====================================================================
 
     @Override
     public boolean updateBalance(String userId, double newBalance) {
-        try (Connection conn = DatabaseConfig.getConnection()) {
-            return updateBalance(conn, userId, newBalance);
+        String sql = "UPDATE users SET balance = ?, updated_at = ? WHERE id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setDouble(1,    newBalance);
+            ps.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
+            ps.setString(3,    userId);
+            return ps.executeUpdate() > 0;
+
         } catch (SQLException e) {
             System.err.println("[UserRepo] updateBalance thất bại: " + userId);
             e.printStackTrace();
             return false;
         }
     }
+    // =====================================================================
+    // WITHDRAW (transaction) — gọi bởi PaymentService.processPayment()
+    //
+    // Dùng "balance = balance - ?" thay vì set giá trị tuyệt đối:
+    //   - Không cần query số dư hiện tại trước khi trừ
+    //   - Tránh race condition nếu có 2 transaction chạy song song
+    //
+    // Kiểm tra số dư đủ bằng WHERE balance >= ? —
+    // nếu 0 row bị ảnh hưởng → số dư không đủ → throw InsufficientFundsException.
+    // =====================================================================
 
     @Override
-    public boolean updateBalance(Connection conn, String userId,
-                                 double newBalance) throws SQLException {
-        String sql = "UPDATE users SET balance = ?, updated_at = ? WHERE id = ?";
+    public void withdraw(Connection conn, String userId, double amount) throws SQLException {
+        String sql = """
+                UPDATE users
+                SET balance = balance - ?, updated_at = ?
+                WHERE id = ? AND balance >= ?               
+                """;
+        // WHERE id = ? AND balance >= ? --> check số dư >= amount trong Database
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setDouble(1,    newBalance);
+            ps.setDouble(1,    amount);
             ps.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
             ps.setString(3,    userId);
-            return ps.executeUpdate() > 0;
+            ps.setDouble(4,    amount);
+
+            int rows = ps.executeUpdate();
+            if (rows == 0)
+                throw new InsufficientFundsException(
+                        "Số dư không đủ để thanh toán. Cần: " + amount);
         }
     }
+
+    // =====================================================================
+    // DEPOSIT (transaction) — gọi bởi PaymentService.processPayment()
+    //
+    // Dùng "balance = balance + ?" — không cần biết số dư hiện tại.
+    // =====================================================================
+
+    @Override
+    public void deposit(Connection conn, String userId, double amount) throws SQLException {
+        String sql = """
+                UPDATE users
+                SET balance = balance + ?, updated_at = ?
+                WHERE id = ?
+                """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setDouble(1,    amount);
+            ps.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
+            ps.setString(3,    userId);
+            ps.executeUpdate();
+        }
+    }
+    // ==============================================================================================================
+    // GET BALANCE (transaction) — gọi bởi PaymentService.processPayment() --> lấy balance mới ngay trong transaction
+    // ==============================================================================================================
+    public double getBalance(Connection conn, String userId) throws SQLException {
+        String sql = "SELECT balance FROM users WHERE id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, userId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("balance");
+                }
+                throw new SQLException("User không tồn tại: " + userId);
+            }
+        }
+    }
+
 
     // =====================================================================
     // FIND BY EMAIL — dùng khi login

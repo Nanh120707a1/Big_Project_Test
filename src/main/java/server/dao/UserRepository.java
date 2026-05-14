@@ -4,7 +4,6 @@ import model.user.User;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Map;
 import java.util.Optional;
 
 public interface UserRepository {
@@ -21,13 +20,25 @@ public interface UserRepository {
     Optional<User> findByEmail(String email);
     Optional<User> findById(String id);
 
-    // ── Overload nhận Connection — dùng trong transaction ────────────────
+    // ── Overload nhận Connection — chỉ dùng trong transaction ────────────
 
     /**
-     * Dùng trong transaction thanh toán:
-     *   updateBalance(conn, bidderId, bidderNewBalance) ← trừ tiền Bidder
-     *   updateBalance(conn, sellerId, sellerNewBalance) ← cộng tiền Seller
-     *   cùng 1 transaction với updateStatus Auction + PaymentObligation
+     * Trừ tiền Buyer trong transaction của PaymentService.processPayment().
+     * Dùng SQL: balance = balance - amount (không cần biết số dư hiện tại).
+     * Throw InsufficientFundsException nếu số dư không đủ.
+     * Caller chịu trách nhiệm commit/rollback.
      */
-    boolean updateBalance(Connection conn, String userId, double newBalance) throws SQLException;
+    void withdraw(Connection conn, String userId, double amount) throws SQLException;
+
+    /**
+     * Cộng tiền Seller trong transaction của PaymentService.processPayment().
+     * Dùng SQL: balance = balance + amount (không cần biết số dư hiện tại).
+     * Caller chịu trách nhiệm commit/rollback.
+     */
+    void deposit(Connection conn, String userId, double amount) throws SQLException;
+
+    /**
+     * Lấy balance mới ngay trong transaction sau khi thực hiện thanh toán
+     */
+    double getBalance(Connection conn, String userId) throws SQLException;
 }

@@ -87,6 +87,22 @@ public class FrontendNotifier {
     }
 
     // ──────────────────────────────────────────────
+    // WALLET UPDATE
+    // ──────────────────────────────────────────────
+    public void notifyBalanceUpdated(String userId, double newBalance) {
+        String message = buildJson("BALANCE_UPDATED",
+                "userId", userId,
+                "balance", String.valueOf(newBalance));
+
+        try {
+            broadcaster.broadcastToUser(userId, message);
+        } catch (Exception e) {
+            System.err.printf("[FrontendNotifier] Gửi balance thất bại user=%s: %s%n",
+                    userId, e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────
     // HELPERS
     // ──────────────────────────────────────────────
 
