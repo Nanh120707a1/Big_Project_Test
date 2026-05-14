@@ -18,7 +18,6 @@ public class Auction extends BaseEntity {
 
     private final String        itemId;
     private final String        sellerId;
-    private final double        startingPrice;
     private double              currentPrice;
     private final double        priceStep;
     private String              leadingBidderId;   // null nếu chưa ai bid
@@ -37,14 +36,13 @@ public class Auction extends BaseEntity {
      * Status mặc định là PENDING — chờ Admin duyệt.
      */
     public Auction(String itemId, String sellerId,
-                   double startingPrice, double priceStep,
+                   double startingPrice,
                    LocalDateTime startTime, LocalDateTime endTime) {
         super();
         this.itemId          = itemId;
         this.sellerId        = sellerId;
-        this.startingPrice   = startingPrice;
         this.currentPrice    = startingPrice;
-        this.priceStep       = priceStep;
+        this.priceStep       = Math.ceil(startingPrice*0.05);
         this.startTime       = startTime;
         this.endTime         = endTime;
         this.status          = AuctionStatus.PENDING;
@@ -58,8 +56,7 @@ public class Auction extends BaseEntity {
     // ──────────────────────────────────────────────
 
     public Auction(String id, LocalDateTime createdAt, LocalDateTime updatedAt,
-                   String itemId, String sellerId,
-                   double startingPrice, double currentPrice, double priceStep,
+                   String itemId, String sellerId, double currentPrice, double priceStep,
                    String leadingBidderId,
                    LocalDateTime startTime, LocalDateTime endTime,
                    AuctionStatus status,
@@ -67,7 +64,6 @@ public class Auction extends BaseEntity {
         super(id, createdAt, updatedAt);
         this.itemId          = itemId;
         this.sellerId        = sellerId;
-        this.startingPrice   = startingPrice;
         this.currentPrice    = currentPrice;
         this.priceStep       = priceStep;
         this.leadingBidderId = leadingBidderId;
@@ -84,7 +80,6 @@ public class Auction extends BaseEntity {
 
     public String        getItemId()          { return itemId; }
     public String        getSellerId()        { return sellerId; }
-    public double        getStartingPrice()   { return startingPrice; }
     public double        getCurrentPrice()    { return currentPrice; }
     public double        getPriceStep()       { return priceStep; }
     public String        getLeadingBidderId() { return leadingBidderId; }

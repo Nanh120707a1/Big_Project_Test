@@ -2,6 +2,7 @@ package server.service;
 
 import model.Auction.Auction;
 import model.Auction.BidTransaction;
+import model.user.Account;
 import server.config.DatabaseConfig;
 import server.dao.AuctionRepository;
 import server.dao.BidTransactionRepository;
@@ -24,7 +25,12 @@ import java.util.concurrent.locks.ReentrantLock;
  *  - JDBC transaction atomic (bid_transactions INSERT + auctions UPDATE cùng commit)
  *  - Broadcast realtime WebSocket SAU KHI transaction commit thành công
  *
+ * Bảo mật:
+ *  - bidderId KHÔNG nhận từ client.
+ *  - Resolve bidderId từ token qua SessionManager.requireAccount(token).
+ *
  * Flow chuẩn:
+ *   requireAccount(token) → resolve bidderId
  *   lock(auctionId)
  *   → validate bid
  *   → begin transaction
@@ -33,17 +39,13 @@ import java.util.concurrent.locks.ReentrantLock;
  *   → commit
  *   → unlock
  *   → broadcastBidUpdate()   ← SAU commit, NGOÀI lock
- *
- * Tại sao broadcast SAU unlock:
- *  - Lock chỉ bảo vệ DB write, không cần giữ khi gửi socket.
- *  - Tránh deadlock nếu socket callback cố lấy lại lock.
- *  - Latency WebSocket không ảnh hưởng throughput của luồng bid.
  */
 public class BidService {
 
-    private final AuctionRepository auctionRepository;
+    private final AuctionRepository        auctionRepository;
     private final BidTransactionRepository bidRepository;
-    private final FrontendNotifier frontendNotifier;
+    private final FrontendNotifier         frontendNotifier;
+    private final SessionManager           sessionManager;
 
     /**
      * Per-auction lock map.
@@ -57,10 +59,12 @@ public class BidService {
 
     public BidService(AuctionRepository auctionRepository,
                       BidTransactionRepository bidRepository,
-                      FrontendNotifier frontendNotifier) {
+                      FrontendNotifier frontendNotifier,
+                      SessionManager sessionManager) {
         this.auctionRepository = auctionRepository;
         this.bidRepository     = bidRepository;
         this.frontendNotifier  = frontendNotifier;
+        this.sessionManager    = sessionManager;
     }
 
     // ──────────────────────────────────────────────
@@ -70,12 +74,18 @@ public class BidService {
     /**
      * Đặt giá cho một phiên đấu giá.
      *
+     * bidderId được resolve từ token — client không được truyền bidderId.
+     *
+     * @param token     Session token của người đặt giá
      * @param auctionId ID phiên
-     * @param bidderId  ID người đặt giá
      * @param amount    Số tiền muốn đặt
      * @return BidResult chứa kết quả và message
      */
-    public BidResult placeBid(String auctionId, String bidderId, double amount) {
+    public BidResult placeBid(String token, String auctionId, double amount) {
+
+        // ── 0. Resolve bidder từ token — KHÔNG trust client ──
+        Account bidder = sessionManager.requireAccount(token);
+        String bidderId = bidder.getId();
 
         ReentrantLock lock = auctionLocks.computeIfAbsent(auctionId, id -> new ReentrantLock());
         lock.lock();
@@ -103,7 +113,7 @@ public class BidService {
             try (Connection conn = DatabaseConfig.getConnection()) {
                 conn.setAutoCommit(false);
                 try {
-                    boolean bidSaved = bidRepository.save(conn, bid);
+                    boolean bidSaved       = bidRepository.save(conn, bid);
                     boolean auctionUpdated = auctionRepository.updateCurrentBid(
                             conn, auctionId, amount, bidderId);
 
@@ -122,7 +132,7 @@ public class BidService {
                 }
             }
 
-            // ── 5. Cập nhật RAM sau commit (optional nhưng giúp validate nhất quán) ──
+            // ── 5. Cập nhật RAM sau commit ──
             auction.applyBid(bidderId, amount);
 
             result = BidResult.success(bid, "Đặt giá thành công: " + amount);
@@ -135,7 +145,6 @@ public class BidService {
         }
 
         // ── 6. Broadcast WebSocket SAU KHI unlock ──
-        // Chỉ broadcast khi bid thực sự thành công (savedBid != null)
         if (savedBid != null) {
             frontendNotifier.broadcastBidUpdate(auctionId, bidderId, amount);
         }
