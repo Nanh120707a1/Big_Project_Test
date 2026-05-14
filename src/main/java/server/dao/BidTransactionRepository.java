@@ -30,9 +30,17 @@ public interface BidTransactionRepository {
      */
     boolean save(Connection conn, BidTransaction bid) throws SQLException;
 
-    /** Lịch sử bid của một phiên, sắp xếp tăng dần theo thời gian. */
-    List<BidTransaction> findByAuction(String auctionId);
+    /** Lịch sử bid của một phiên, sắp xếp tăng dần theo thời gian.
+     * Dùng trong màn hình AuctionDetail*/
+    List<BidTransaction> findByAuctionId(String auctionId);
 
     /** Tất cả bid của một Bidder (dùng cho tab "Phiên đang tham gia"). */
     List<BidTransaction> findByBidder(String bidderId);
+
+    // Nhung thêm
+    /**
+     * Lấy danh sách các auction mà user đã từng tham gia đấu giá
+     * Dùng trong màn hình của Bidder (BidderAuctionDTO)
+     */
+    List<String> findAuctionIdsByBidder(String bidderId);
 }

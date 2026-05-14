@@ -5,10 +5,12 @@ import model.Auction.BidTransaction;
 import server.config.DatabaseConfig;
 import server.dao.AuctionRepository;
 import server.dao.BidTransactionRepository;
+import server.dto.BidHistoryDTO;
 import server.websocket.FrontendNotifier;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -150,8 +152,13 @@ public class BidService {
             return BidResult.fail("Phiên đấu giá không đang hoạt động. Trạng thái: "
                     + auction.getStatus());
         }
+        // Seller tự bid
         if (auction.getSellerId().equals(bidderId)) {
             return BidResult.fail("Seller không thể tự đặt giá cho phiên của mình.");
+        }
+        // Người đang giữ giá cao nhất bid tiếp
+        if (bidderId.equals(auction.getLeadingBidderId())) {
+            return BidResult.fail("Bạn đang là người giữ giá cao nhất.");
         }
         if (amount < auction.getMinNextBid()) {
             return BidResult.fail(String.format(
@@ -191,5 +198,19 @@ public class BidService {
         public boolean        isSuccess() { return success; }
         public String         getMessage() { return message; }
         public BidTransaction getBid()    { return bid; }
+    }
+
+    // ──────────────────────────────────────────────
+    // PHỤC VỤ UI (MÀN HÌNH ĐẤU GIÁ 1 PHIÊN)
+    // ──────────────────────────────────────────────
+    public List<BidHistoryDTO> getBidHistory(String auctionId) {
+        return bidRepository.findByAuctionId(auctionId)
+                .stream()
+                .map(b -> new BidHistoryDTO(
+                        b.getBidderId(), // hoặc map sang username nếu cần
+                        b.getAmount(),
+                        b.getTimestamp()
+                ))
+                .toList();
     }
 }

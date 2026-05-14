@@ -72,8 +72,15 @@ public interface AuctionRepository {
     /** Lấy tất cả phiên chưa PAID/CANCELED — dùng cho danh sách active. */
     List<Auction> findAllActive();
 
-    /** Lấy tất cả phiên theo status  */
+    // Nhung thêm
+    /** Lấy tất cả phiên theo status
+     * Dùng trong màn hình của Admin PENDING*/
     List<Auction> findByStatus(AuctionStatus status);
+
+    /** Lấy nhiều trạng thái cùng lúc
+     * Dùng trong MainView --> Cần (OPEN, RUNNING, FINISHED)
+     */
+    List<Auction> findByStatus(List<AuctionStatus> statuses);
 
     /** Lấy tất cả phiên của một Seller (mọi status). */
     List<Auction> findBySeller(String sellerId);
